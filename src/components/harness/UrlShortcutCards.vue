@@ -172,4 +172,51 @@ function retry(): void {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.empty-shortcuts {
+  width: 100%;
+  margin-top: 32px;
+}
+
+.empty-shortcuts .url-shortcuts__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  font-size: var(--font-xs);
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.empty-shortcuts .url-shortcuts__title::after {
+  height: 1px;
+  flex: 1;
+  background: var(--color-border);
+  content: '';
+}
+
+.empty-shortcuts .url-shortcut-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+}
+
+.empty-shortcuts .url-shortcut-card {
+  gap: 6px;
+  padding: 14px;
+  border-color: #e2eaf0;
+  background: #f7fafc;
+}
+
+.empty-shortcuts .url-shortcut-card:hover,
+.empty-shortcuts .url-shortcut-card:focus-visible {
+  border-color: #9bb6ca;
+  background: #eff5f9;
+}
+
+.empty-shortcuts .url-shortcut-card__name-text {
+  color: var(--color-text);
+}
+
+.empty-shortcuts .url-shortcut-card__external {
+  color: var(--welcome-accent, #527c9b);
+}
 </style>

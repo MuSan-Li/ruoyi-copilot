@@ -151,12 +151,15 @@ onMounted(() => {
       <h2>正在恢复持久会话</h2>
       <p>加载消息账本、运行快照与事件序号。</p>
     </div>
-    <div v-else-if="!run && messages.length === 0" class="empty-state">
-      <div class="brand-symbol"><span /><span /><span /><span /></div>
+    <div v-else-if="!run && messages.length === 0" class="empty-state home-welcome">
+      <div class="brand-symbol" aria-hidden="true"><span /><span /><span /><span /></div>
       <h1>把复杂编程任务交给 Harness</h1>
       <p>它会先规划，再按权限执行工具，持续验证并在断线后从事件账本恢复。</p>
       <div class="capability-grid">
-        <span>持久运行</span><span>计划审批</span><span>上下文压缩</span><span>工具策略</span>
+        <span><AppIcon name="spark" :size="13" />持久运行</span>
+        <span><AppIcon name="check" :size="13" />计划审批</span>
+        <span><AppIcon name="document" :size="13" />上下文压缩</span>
+        <span><AppIcon name="shield" :size="13" />工具策略</span>
       </div>
       <UrlShortcutCards
         class="empty-shortcuts"
@@ -194,3 +197,44 @@ onMounted(() => {
     </button>
   </section>
 </template>
+
+<style scoped>
+.home-welcome {
+  --welcome-accent: #527c9b;
+  width: min(600px, calc(100% - 40px));
+}
+
+.home-welcome .brand-symbol {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 24px;
+}
+
+.home-welcome .brand-symbol span:nth-child(1) { background: #5b7cde; }
+.home-welcome .brand-symbol span:nth-child(2) { background: #9070d5; }
+.home-welcome .brand-symbol span:nth-child(3) { background: #46a9c4; }
+.home-welcome .brand-symbol span:nth-child(4) { background: #55b49c; }
+
+.home-welcome > p {
+  line-height: 1.8;
+}
+
+.home-welcome .capability-grid {
+  gap: 8px 20px;
+  margin-top: 18px;
+}
+
+.home-welcome .capability-grid > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+}
+
+.home-welcome .capability-grid svg {
+  color: var(--welcome-accent);
+}
+</style>

@@ -14,9 +14,39 @@ import type {
 
 const base = '/coding/harness'
 const encode = encodeURIComponent
+interface UploadedAttachment { fileName: string; url: string; ossId: string }
+const attachmentUploads = new WeakMap<File, Promise<UploadedAttachment>>()
+
+async function uploadAttachment(file: File): Promise<UploadedAttachment> {
+  const existing = attachmentUploads.get(file)
+  if (existing) return existing
+  const body = new FormData()
+  body.append('file', file, file.name)
+  const pending = requestJson<UploadedAttachment>('/resource/oss/upload', { method: 'POST', body })
+    .then(result => {
+      if (!result.url || !/^https?:\/\//i.test(result.url)) throw new Error('上传接口未返回有效文件 URL')
+      return result
+    }).catch(error => { attachmentUploads.delete(file); throw error })
+  attachmentUploads.set(file, pending)
+  return pending
+}
 
 export const harnessApi = {
+  uploadAttachments: async (files: readonly File[]) => {
+    const uploaded: UploadedAttachment[] = []
+    for (const file of files) uploaded.push(await uploadAttachment(file))
+    return uploaded
+  },
   listSessions: () => requestJson<HarnessSessionState[]>(`${base}/sessions`),
+  pinSession: (sessionId: string, pinned: boolean) => requestJson<HarnessSessionState>(
+    `${base}/sessions/${encode(sessionId)}/pin`, { method: 'PUT', body: JSON.stringify({ pinned }) },
+  ),
+  deleteSession: (sessionId: string) => requestJson<void>(`${base}/sessions/${encode(sessionId)}`, {
+    method: 'DELETE',
+  }),
+  restoreSession: (sessionId: string) => requestJson<HarnessSessionState>(
+    `${base}/sessions/${encode(sessionId)}/restore`, { method: 'POST' },
+  ),
   createSession: (input: CreateSessionInput) => requestJson<HarnessSessionState>(`${base}/sessions`, {
     method: 'POST', body: JSON.stringify(input),
   }),
@@ -89,7 +119,7 @@ export const harnessApi = {
   ),
   listModels: async (): Promise<ModelOption[]> => {
     const rows = await requestJson<unknown[]>('/system/model/modelList')
-    return rows.flatMap((row) => {
+    const configured = rows.flatMap((row) => {
       if (typeof row !== 'object' || row === null) return []
       const item = row as Record<string, unknown>
       const rawName = item.modelName ?? item.name
@@ -104,5 +134,9 @@ export const harnessApi = {
           : undefined,
       }]
     })
+    const hasDeepSeek = configured.some((model) => model.name.startsWith('deepseek-v4-'))
+    return hasDeepSeek
+      ? [{ id: 'deepseek-auto', name: 'deepseek-auto', provider: '自动：Flash / Pro / Vision' }, ...configured]
+      : configured
   },
 }

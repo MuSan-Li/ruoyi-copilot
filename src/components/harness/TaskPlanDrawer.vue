@@ -51,7 +51,7 @@ const emit = defineEmits<Emits>()
   flex-direction: column;
   overflow: hidden;
   border-left: 1px solid var(--color-border);
-  background: rgba(247, 247, 245, 0.96);
+  background: rgba(247, 247, 247, 0.96);
 }
 
 .task-inspector-header {
@@ -114,7 +114,7 @@ const emit = defineEmits<Emits>()
     z-index: 25;
     width: min(390px, 100%);
     min-width: 0;
-    box-shadow: -18px 0 42px rgba(24, 24, 27, 0.13);
+    box-shadow: -18px 0 42px rgba(23, 23, 23, 0.13);
   }
 }
 

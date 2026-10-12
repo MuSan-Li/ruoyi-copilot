@@ -19,9 +19,21 @@ export function useFollowScroll(
   const _hasNewContent = shallowRef(false)
   let animationFrame: number | null = null
 
+  function hasSelectedText(element: HTMLElement): boolean {
+    const selection = element.ownerDocument.getSelection()
+    if (!selection || selection.isCollapsed) return false
+    for (let index = 0; index < selection.rangeCount; index++) {
+      if (selection.getRangeAt(index).intersectsNode(element)) return true
+    }
+    return false
+  }
+
   function updateScrollState(): void {
     const element = container.value
     if (!element) return
+    // Text selection can scroll an overflowing ancestor horizontally even when
+    // its scrollbar is hidden. This viewport only supports vertical scrolling.
+    if (element.scrollLeft !== 0) element.scrollLeft = 0
     const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight
     _isNearBottom.value = distanceFromBottom <= bottomThreshold
     if (_isNearBottom.value) _hasNewContent.value = false
@@ -30,15 +42,23 @@ export function useFollowScroll(
   function scrollToLatest({ behavior = 'auto', force = false }: ScrollToLatestOptions = {}): void {
     const element = container.value
     if (!element) return
-    if (!force && !_isNearBottom.value) {
+    if (!force && (!_isNearBottom.value || hasSelectedText(element))) {
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame)
+      animationFrame = null
       _hasNewContent.value = true
       return
     }
 
     if (animationFrame !== null) cancelAnimationFrame(animationFrame)
     animationFrame = requestAnimationFrame(() => {
+      animationFrame = null
       const current = container.value
       if (!current) return
+      // Selection or manual scrolling can begin after this frame was scheduled.
+      if (!force && (!_isNearBottom.value || hasSelectedText(current))) {
+        _hasNewContent.value = true
+        return
+      }
       const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
       current.scrollTo({
         top: current.scrollHeight,

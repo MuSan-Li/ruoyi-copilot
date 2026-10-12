@@ -10,6 +10,8 @@ export interface StreamingAssistantTurn {
 export interface ToolActivity {
   toolCallId: string
   toolName: string
+  /** Model effect which proposed this tool. Missing only on legacy replay events. */
+  effectId?: string
   arguments?: string
   status: 'RUNNING' | 'COMPLETED' | 'FAILED'
   code?: string
@@ -56,6 +58,17 @@ function runStatus(value: unknown): HarnessRunStatus | null {
     ? value as HarnessRunStatus : null
 }
 
+function discardRunningTools(
+  tools: Readonly<Record<string, ToolActivity>>,
+  effectId?: string,
+): Readonly<Record<string, ToolActivity>> {
+  const entries = Object.entries(tools).filter(([, activity]) => {
+    if (activity.status !== 'RUNNING') return true
+    return effectId !== undefined && activity.effectId !== effectId
+  })
+  return entries.length === Object.keys(tools).length ? tools : Object.fromEntries(entries)
+}
+
 export function reduceHarnessEvent(
   current: HarnessEventProjection,
   event: HarnessEvent,
@@ -65,6 +78,11 @@ export function reduceHarnessEvent(
   let tools = current.tools
   let planIdentity = current.planIdentity
   const effectId = stringData(event, 'effectId')
+
+  if (event.type === 'model.turn.started' && effectId) {
+    if (streamingTurn?.effectId !== effectId) streamingTurn = null
+    tools = discardRunningTools(tools)
+  }
 
   if ((event.type === 'assistant.text.delta' || event.type === 'assistant.thinking.delta') && effectId) {
     const existing = streamingTurn?.effectId === effectId
@@ -76,8 +94,25 @@ export function reduceHarnessEvent(
       : { ...existing, thinking: existing.thinking + delta }
   }
 
-  if (event.type === 'assistant.completed' && streamingTurn) {
+  if (event.type === 'assistant.completed' && effectId
+    && streamingTurn?.effectId === effectId) {
     streamingTurn = { ...streamingTurn, completed: true }
+  }
+
+  if (event.type === 'model.turn.abandoned' && effectId) {
+    if (streamingTurn?.effectId === effectId) streamingTurn = null
+    tools = discardRunningTools(tools, effectId)
+  }
+
+  // Compatibility for ledgers written before model.turn.abandoned existed. Retry and terminal
+  // boundaries make unfinished drafts and RUNNING proposals non-authoritative.
+  if (event.type === 'model.turn.retrying'
+    || event.type === 'run.suspended'
+    || event.type === 'run.completed'
+    || event.type === 'run.failed'
+    || event.type === 'run.cancelled') {
+    if (streamingTurn && !streamingTurn.completed) streamingTurn = null
+    tools = discardRunningTools(tools)
   }
 
   if (event.type === 'assistant.tool.complete' && event.toolCallId) {
@@ -86,6 +121,7 @@ export function reduceHarnessEvent(
       [event.toolCallId]: {
         toolCallId: event.toolCallId,
         toolName: stringData(event, 'name') ?? 'unknown_tool',
+        effectId,
         arguments: stringData(event, 'arguments'),
         status: 'RUNNING',
       },
@@ -100,6 +136,7 @@ export function reduceHarnessEvent(
       [event.toolCallId]: {
         toolCallId: event.toolCallId,
         toolName: existing?.toolName ?? 'unknown_tool',
+        effectId: existing?.effectId,
         arguments: existing?.arguments,
         status: failed ? 'FAILED' : 'COMPLETED',
         code: stringData(event, 'code'),

@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.node.json && vite build",
     "build:fast": "vite build",
-    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "typecheck": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -17,9 +18,11 @@
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
+    "@types/node": "24.13.3",
     "@vitejs/plugin-vue": "^6.0.0",
     "typescript": "~5.9.3",
     "vite": "^7.0.4",
+    "vitest": "4.1.11",
     "vue-tsc": "^3.3.9"
   }
 }

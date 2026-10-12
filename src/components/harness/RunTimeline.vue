@@ -12,6 +12,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const recentEvents = computed(() => props.events.slice(-5).reverse())
+const modelRoute = computed(() => props.run.modelRoute ?? null)
 const statusLabel = computed(() => ({
   QUEUED: '排队中',
   RUNNING: '执行中',
@@ -22,6 +23,21 @@ const statusLabel = computed(() => ({
   FAILED: '失败',
   CANCELLED: '已取消',
 })[props.run.status])
+const taskClassLabel = computed(() => ({
+  SIMPLE: '简单',
+  COMPLEX: '复杂',
+  VISION: '视觉',
+})[modelRoute.value?.taskClass ?? 'SIMPLE'])
+const routeSourceLabel = computed(() => ({
+  AUTO_POLICY: '服务端自动路由',
+  SESSION_FIXED: '会话固定模型',
+  LEGACY_SESSION_FALLBACK: '历史会话兼容路由',
+})[modelRoute.value?.source ?? 'LEGACY_SESSION_FALLBACK'])
+const routeTitle = computed(() => {
+  const route = modelRoute.value
+  if (!route) return '当前服务端未返回模型路由信息'
+  return `${routeSourceLabel.value} · 请求 ${route.requestedModel} · 策略 v${route.policyVersion}`
+})
 
 function eventLabel(type: string): string {
   const labels: Record<string, string> = {
@@ -29,7 +45,7 @@ function eventLabel(type: string): string {
     'run.started': '模型循环已开始',
     'run.waiting_for_approval': '等待工具审批',
     'run.waiting_for_input': '等待计划或补充输入',
-    'run.completed': '验收完成',
+    'run.completed': '运行已完成',
     'run.failed': '运行失败',
     'run.suspended': '运行已挂起',
     'assistant.completed': '模型回合已持久化',
@@ -48,8 +64,11 @@ function eventLabel(type: string): string {
         <AppIcon v-else name="check" :size="13" />
         {{ statusLabel }}
       </span>
-      <span>回合 {{ run.iteration }} / {{ run.budget.maxIterations }}</span>
-      <span>工具 {{ run.toolCallCount }} / {{ run.budget.maxToolCalls }}</span>
+      <span>回合 {{ run.iteration }}</span>
+      <span>工具 {{ run.toolCallCount }}<template v-if="run.budget.maxToolCalls > 0"> / {{ run.budget.maxToolCalls }}</template></span>
+      <span v-if="modelRoute" :title="routeTitle">模型 {{ modelRoute.selectedModel }}</span>
+      <span v-if="modelRoute">分类 {{ taskClassLabel }}</span>
+      <span v-if="modelRoute?.thinkingEnabled" title="本次运行由服务端开启深度思考">深度思考</span>
       <span class="run-id" :title="run.runId">{{ run.runId.slice(0, 8) }}</span>
     </div>
     <ol class="event-strip" aria-label="最近运行事件">

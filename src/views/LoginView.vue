@@ -172,10 +172,6 @@ function submit(): void {
           {{ optionsLoading ? '正在读取登录配置…' : '重新读取登录配置' }}
         </button>
 
-        <div class="auth-security-note">
-          <AppIcon name="check" :size="14" />
-          <span>安全连接 · 登录状态仅保存在当前浏览器</span>
-        </div>
       </div>
     </section>
 

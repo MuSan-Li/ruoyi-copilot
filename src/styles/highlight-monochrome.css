@@ -1,0 +1,54 @@
+/* Use contrast and typography to distinguish syntax without colored accents. */
+pre code.hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 1em;
+}
+
+code.hljs { padding: 3px 5px; }
+
+.hljs {
+  color: var(--color-code-text);
+  background: var(--color-code-background);
+}
+
+.hljs-keyword,
+.hljs-doctag,
+.hljs-type,
+.hljs-title,
+.hljs-section,
+.hljs-strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-template-variable,
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-number {
+  color: #d4d4d4;
+}
+
+.hljs-comment,
+.hljs-code,
+.hljs-formula,
+.hljs-meta {
+  color: var(--color-code-muted);
+}
+
+.hljs-comment,
+.hljs-emphasis { font-style: italic; }
+
+.hljs-addition {
+  color: #ffffff;
+  background: #363636;
+}
+
+.hljs-deletion {
+  color: #c4c4c4;
+  background: #292929;
+  text-decoration: line-through;
+}

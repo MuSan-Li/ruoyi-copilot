@@ -4,9 +4,11 @@ import MessageItem from './MessageItem.vue'
 import RunTimeline from './RunTimeline.vue'
 import ToolActivityGroup from './ToolActivityGroup.vue'
 import ApprovalRequestCard from './ApprovalRequestCard.vue'
+import UrlShortcutCards from './UrlShortcutCards.vue'
 import AppIcon from '../AppIcon.vue'
 import { useFollowScroll } from '../../composables/useFollowScroll'
 import { createRunOutcomeSummary, mergeAssistantTurns } from '../../utils/displayMessages'
+import type { UrlShortcut } from '../../api/urlApi'
 import type { ApprovalDecision, HarnessMessage, HarnessRunState, ToolCallApproval } from '../../types/harness'
 import type { HarnessEventProjection } from '../../state/harnessEventReducer'
 import type { DisplayMessage, DisplayToolActivity } from '../../types/ui'
@@ -18,10 +20,14 @@ interface Props {
   loading: boolean
   connection: string
   pendingApprovals: readonly ToolCallApproval[]
+  shortcuts?: readonly UrlShortcut[]
+  shortcutsLoading?: boolean
+  shortcutsError?: string
 }
 
 interface Emits {
   resolveApproval: [approvalId: string, decision: ApprovalDecision, note?: string]
+  retryShortcuts: []
 }
 
 const props = defineProps<Props>()
@@ -93,6 +99,8 @@ const toolActivities = computed<DisplayToolActivity[]>(() => {
     activities.set(tool.toolCallId, {
       ...persisted,
       ...tool,
+      toolName: persisted?.toolName && persisted.toolName !== 'unknown_tool'
+        ? persisted.toolName : tool.toolName,
       status: persisted?.status ?? tool.status,
       content: persisted?.content,
       timestamp: persisted?.timestamp ?? eventTimestamps.get(tool.toolCallId) ?? 0,
@@ -103,6 +111,10 @@ const toolActivities = computed<DisplayToolActivity[]>(() => {
 
 function resolveApproval(approvalId: string, decision: ApprovalDecision, note?: string): void {
   emit('resolveApproval', approvalId, decision, note)
+}
+
+function retryShortcuts(): void {
+  emit('retryShortcuts')
 }
 
 watch(
@@ -146,6 +158,13 @@ onMounted(() => {
       <div class="capability-grid">
         <span>持久运行</span><span>计划审批</span><span>上下文压缩</span><span>工具策略</span>
       </div>
+      <UrlShortcutCards
+        class="empty-shortcuts"
+        :shortcuts="shortcuts ?? []"
+        :loading="shortcutsLoading ?? false"
+        :error="shortcutsError ?? ''"
+        @retry="retryShortcuts"
+      />
     </div>
 
     <div v-else class="timeline-inner">

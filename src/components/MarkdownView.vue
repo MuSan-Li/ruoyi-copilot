@@ -62,7 +62,7 @@ onBeforeUnmount(() => root.value?.removeEventListener('click', onClick))
   width: 100%;
   min-height: 160px;
   margin-top: 8px;
-  border: 1px solid #d8d8df;
+  border: 1px solid var(--color-border-strong);
   border-radius: 8px;
   background: #fff;
 }

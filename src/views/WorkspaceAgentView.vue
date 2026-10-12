@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef, watch } from 'vue'
+import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import SessionSidebar from '../components/harness/SessionSidebar.vue'
 import ConversationTimeline from '../components/harness/ConversationTimeline.vue'
 import AgentComposer from '../components/harness/AgentComposer.vue'
 import TaskPlanDrawer from '../components/harness/TaskPlanDrawer.vue'
 import AppIcon from '../components/AppIcon.vue'
 import { useHarnessAgent } from '../composables/useHarnessAgent'
+import { useImageAttachments } from '../composables/useImageAttachments'
+import { useFileAttachments } from '../composables/useFileAttachments'
+import {
+  DEFAULT_DOUBAO_IMAGE_DETAIL,
+  isDoubaoModel,
+} from '../utils/modelCapabilities'
 
 interface Props {
   userName: string
@@ -15,6 +21,23 @@ defineProps<Props>()
 const emit = defineEmits<{ logout: [] }>()
 
 const agent = useHarnessAgent()
+const composer = useTemplateRef<InstanceType<typeof AgentComposer>>('agentComposer')
+const images = useImageAttachments()
+const files = useFileAttachments()
+const attachmentLimitError = shallowRef('')
+function canAddAttachments(additions: readonly File[]): boolean {
+  attachmentLimitError.value = ''
+  const total = [...files.attachments.value, ...images.attachments.value].reduce((sum, item) => sum + item.byteSize, 0)
+    + additions.reduce((sum, file) => sum + file.size, 0)
+  if (total > 50 * 1024 * 1024) {
+    attachmentLimitError.value = '图片和附件合计不能超过 50 MB'
+    return false
+  }
+  return true
+}
+function addFiles(additions: readonly File[]): void {
+  if (canAddAttachments(additions)) void files.addFiles(additions)
+}
 const sidebarCollapsed = shallowRef(false)
 const mobileSidebarOpen = shallowRef(false)
 const planInspectorOpen = shallowRef(false)
@@ -41,8 +64,21 @@ watch(
   },
   { immediate: true },
 )
-function submit(content: string): void {
-  void agent.submit(content)
+async function submit(content: string): Promise<void> {
+  if (files.reading.value || images.reading.value) return
+  const submitted = await agent.submit(content, images.attachments.value, files.attachments.value)
+  if (submitted) { images.clear(); files.clear(); composer.value?.clearDraft(); attachmentLimitError.value = '' }
+}
+
+function addImages(files: readonly File[]): void {
+  if (!canAddAttachments(files)) return
+  const model = agent.activeSession.value?.model ?? agent.settings.model
+  const detail = isDoubaoModel(model) ? DEFAULT_DOUBAO_IMAGE_DETAIL : 'auto'
+  void images.addFiles(files, detail)
+}
+
+function setImageDetail(id: string, detail: 'low' | 'high' | 'xhigh' | 'auto' | 'original'): void {
+  images.setDetail(id, detail)
 }
 
 function collapseSidebar(): void {
@@ -75,6 +111,11 @@ onMounted(() => {
       :open="mobileSidebarOpen"
       :user-name="userName"
       :busy="agent.submitting.value"
+      :action-id="agent.sessionActionId.value"
+      :action-error="agent.sessionActionError.value"
+      @pin="agent.changeSessionPin"
+      @delete="agent.deleteSession"
+      @clear-action-error="agent.clearSessionActionError"
       @collapse="collapseSidebar"
       @close="mobileSidebarOpen = false"
       @new-session="agent.newSession"
@@ -93,8 +134,9 @@ onMounted(() => {
             <span><AppIcon name="folder" :size="12" /> {{ workspaceLabel }}</span>
           </div>
         </div>
-        <div v-if="activePlan" class="topbar-actions">
+        <div v-if="agent.activeSession.value && activePlan" class="topbar-actions">
           <button
+            v-if="activePlan"
             class="task-preview-trigger"
             :class="{ 'task-preview-trigger--attention': planNeedsReview }"
             type="button"
@@ -123,27 +165,53 @@ onMounted(() => {
             :loading="agent.loading.value"
             :connection="agent.connection.value"
             :pending-approvals="agent.pendingApprovals.value"
+            :shortcuts="agent.shortcuts.value"
+            :shortcuts-loading="agent.shortcutsLoading.value"
+            :shortcuts-error="agent.shortcutsError.value"
             @resolve-approval="agent.resolveApproval"
+            @retry-shortcuts="agent.retryShortcuts"
           />
 
           <AgentComposer
+            ref="agentComposer"
             :models="agent.models.value"
             :model="agent.settings.model"
             :workspace-path="agent.settings.workspacePath"
+            :workspace-projects="agent.settings.workspaceProjects"
             :permission-mode="agent.settings.permissionMode"
             :approval-policy="agent.settings.approvalPolicy"
+            :active-model="agent.activeSession.value?.model ?? null"
+            :active-workspace-path="agent.activeSession.value?.workspace ?? null"
+            :active-workspace-manifest="agent.activeSession.value?.workspaceManifest ?? null"
             :active-permission-mode="agent.activeSession.value?.permissionMode ?? null"
             :active-approval-policy="agent.activeSession.value
               ? (agent.activeSession.value.approvalPolicy ?? 'ON_REQUEST')
               : null"
+            :thinking-level="agent.activeThinkingLevel.value"
+            :settings-locked="agent.sessionSettingsLocked.value"
+            :loading="agent.loading.value"
             :run-status="agent.activeRun.value?.status ?? null"
             :submitting="agent.submitting.value"
             :can-cancel="agent.canCancel.value"
             :can-resume="agent.canResume.value"
+            :image-input-allowed="agent.imageInputAllowed.value"
+            :image-input-hint="agent.imageInputHint.value"
+            :workspace-manifest-error="agent.workspaceManifestError.value"
+            :attachments="images.attachments.value"
+            :files="files.attachments.value"
+            :attachments-reading="files.reading.value || images.reading.value"
+            :attachment-error="[attachmentLimitError, images.error.value, files.error.value].filter(Boolean).join('；')"
             @update:model="agent.setModel"
             @update:workspace-path="agent.setWorkspacePath"
+            @update:workspace-projects="agent.setWorkspaceProjects"
             @update:permission-mode="agent.setPermissionMode"
             @update:approval-policy="agent.setApprovalPolicy"
+            @update:thinking-level="agent.setThinkingLevel"
+            @add-images="addImages"
+            @add-files="addFiles"
+            @remove-file="files.remove"
+            @remove-image="images.remove"
+            @update-image-detail="setImageDetail"
             @submit="submit"
             @cancel="agent.cancel"
             @resume="agent.resume"
@@ -162,5 +230,14 @@ onMounted(() => {
         />
       </div>
     </main>
+
+    <div v-if="agent.lastDeletedSession.value" class="session-toast" role="status">
+      <AppIcon name="check" :size="16" />
+      <span>会话已删除</span>
+      <button type="button" :disabled="!!agent.sessionActionId.value" @click="agent.undoSessionDelete">撤销</button>
+      <button class="icon-button" type="button" aria-label="关闭删除提示" @click="agent.dismissDeletedSession">
+        <AppIcon name="x" :size="14" />
+      </button>
+    </div>
   </div>
 </template>

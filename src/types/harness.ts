@@ -1,6 +1,22 @@
 export type HarnessPermissionMode = 'READ_ONLY' | 'WORKSPACE_WRITE' | 'FULL_ACCESS'
 export type HarnessApprovalPolicy = 'ON_REQUEST' | 'NEVER'
 
+/** 字节 Doubao-Seed-Evolving 思考等级（reasoning_effort）。none 关闭思考。 */
+export type HarnessThinkingLevel =
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
+
+/** 会话验证归属：AGENT 智能体自验证（默认）；EXTERNAL 独立外部验收。 */
+export type HarnessVerificationMode = 'AGENT' | 'EXTERNAL'
+
+/** 图片精度：DeepSeek 用 auto/low/original；Doubao 用 low/high/xhigh。 */
+export type HarnessImageDetail = 'auto' | 'low' | 'original' | 'high' | 'xhigh'
+
 export type HarnessRunStatus =
   | 'QUEUED'
   | 'RUNNING'
@@ -18,6 +34,11 @@ export type ApprovalState = 'PENDING' | 'APPROVED' | 'DENIED' | 'EXPIRED' | 'CON
 export type PlanStepStatus = 'PENDING' | 'IN_PROGRESS' | 'BLOCKED' | 'FAILED' | 'COMPLETED' | 'SKIPPED'
 export type ExecutionMode = 'PLAN' | 'BUILD' | 'VERIFY' | 'BLOCKED' | 'COMPLETED' | 'FAILED'
 export type PlanReviewState = 'DRAFT' | 'AWAITING_APPROVAL' | 'APPROVED' | 'REVISION_REQUESTED'
+export type HarnessTaskClass = 'SIMPLE' | 'COMPLEX' | 'VISION'
+export type HarnessModelRouteSource = 'AUTO_POLICY' | 'SESSION_FIXED' | 'LEGACY_SESSION_FALLBACK'
+
+export const WORKSPACE_MANIFEST_SCHEMA_VERSION = 1
+export const MAX_WORKSPACE_MANIFEST_PROJECTS = 32
 
 export interface HarnessBudget {
   maxIterations: number
@@ -27,21 +48,52 @@ export interface HarnessBudget {
   maxWallTimeMillis: number
 }
 
+/** Immutable server-side routing decision captured before a run is scheduled. */
+export interface HarnessModelRoute {
+  policyVersion: number
+  requestedModel: string
+  selectedModel: string
+  taskClass: HarnessTaskClass
+  thinkingEnabled: boolean
+  source: HarnessModelRouteSource
+}
+
+export interface WorkspaceManifestProject {
+  projectId: string
+  relativePath: string
+  displayName: string
+  tags: readonly string[]
+}
+
+/** Describes projects inside one workspace lease; it never expands that lease or its permissions. */
+export interface WorkspaceManifest {
+  schemaVersion: number
+  projects: readonly WorkspaceManifestProject[]
+}
+
 export interface HarnessSessionState {
   schemaVersion: number
   sessionId: string
   tenantId: string
   userId: number | string
   workspace: string
+  workspaceManifest: WorkspaceManifest
   model: string
   permissionMode: HarnessPermissionMode
   /** Missing only on sessions created by servers predating independent approval policies. */
   approvalPolicy?: HarnessApprovalPolicy
+  /** Doubao 思考等级；旧会话缺省时按 high 处理。 */
+  thinkingLevel?: HarnessThinkingLevel
+  /** 验证归属；旧会话缺省按 AGENT 处理。 */
+  verificationMode?: HarnessVerificationMode
   title: string | null
   activeRunId: string | null
   createdAt: number
   updatedAt: number
   revision: number
+  /** Server-persisted sidebar state; absent on legacy servers. */
+  pinnedAt?: number
+  deletedAt?: number
 }
 
 export interface HarnessQueuedInput {
@@ -189,6 +241,7 @@ export interface HarnessRunState {
   permissionMode: HarnessPermissionMode
   permissionRevision: number
   budget: HarnessBudget
+  modelRoute: HarnessModelRoute
   executionPlan: ExecutionPlan | null
   pendingInputs: readonly HarnessQueuedInput[]
   approvals: Readonly<Record<string, HarnessApprovalPreview>>
@@ -223,11 +276,28 @@ export interface ModelOption {
   provider?: string
 }
 
+export interface HarnessImageInput {
+  dataUrl: string
+  detail: HarnessImageDetail
+}
+
+export interface PendingImageAttachment extends HarnessImageInput {
+  id: string
+  name: string
+  mediaType: string
+  byteSize: number
+}
+
 export interface CreateSessionInput {
   workspacePath?: string
+  workspaceManifest?: WorkspaceManifest
   model: string
   permissionMode: HarnessPermissionMode
   approvalPolicy: HarnessApprovalPolicy
+  /** Doubao 思考等级；非 Doubao 模型忽略。 */
+  thinkingLevel?: HarnessThinkingLevel
+  /** 验证归属；默认 AGENT。 */
+  verificationMode?: HarnessVerificationMode
   title?: string
   /** Stable for every retry of the same logical session creation. */
   idempotencyKey: string
@@ -236,6 +306,7 @@ export interface CreateSessionInput {
 export interface CreateRunInput {
   requirement: string
   budget?: HarnessBudget
+  images?: readonly HarnessImageInput[]
   /** Stable for every retry of the same logical run creation. */
   idempotencyKey: string
 }

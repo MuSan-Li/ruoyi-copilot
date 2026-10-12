@@ -17,6 +17,7 @@ export default defineConfig({
       '/auth': { target, changeOrigin: true },
       '/coding': { target, changeOrigin: true },
       '/system': { target, changeOrigin: true },
+      '/resource': { target, changeOrigin: true },
     },
   },
 })
